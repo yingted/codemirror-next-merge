@@ -5,10 +5,17 @@
   <title>CodeMirror 6 merge view demo</title>
 </head>
 <body>
-  <div style="display: flex;">
-    <div id="left" style="flex-basis: 0; flex-grow: 1;"></div>
-    <div id="merge" style=""></div>
-    <div id="right" style="flex-basis: 0; flex-grow: 1;"></div>
+  <style>
+    #container > div > .cm-wrap {
+      height: 100%;
+    }
+  </style>
+  <div id="container" style="display: flex;">
+    <div id="a" style="flex-basis: 0; flex-grow: 1;"></div>
+    <div id="ab"></div>
+    <div id="b" style="flex-basis: 0; flex-grow: 1;"></div>
+    <div id="bc"></div>
+    <div id="c" style="flex-basis: 0; flex-grow: 1;"></div>
   </div>
   <script src="demo.js"></script>
   <noscript>You need JavaScript to view this page.</noscript>

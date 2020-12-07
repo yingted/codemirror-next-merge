@@ -1,6 +1,8 @@
 import {EditorView, EditorState, basicSetup} from '@codemirror/next/basic-setup';
 import {ChangeSet} from '@codemirror/next/state';
+import {RangeSet} from '@codemirror/next/rangeset';
 import {diffChars} from 'diff';
+import {html, render} from 'lit-html';
 
 /**
  * Convert a diff to a ChangeSet.
@@ -44,6 +46,8 @@ class EditorViewDiff {
     this._updateListeners = [];
     this.left = left;
     this.right = right;
+    this._leftDecorations = RangeSet.empty;
+    this._rightDecorations = RangeSet.empty;
 
     this.left.dispatch(this.left.state.update({
       reconfigure: {
@@ -56,6 +60,8 @@ class EditorViewDiff {
       },
     }));
   }
+
+  // Updates:
   _emptyUpdate(lr) {
     return {
       changes: ChangeSet.empty(lr.state.doc.length),
@@ -96,6 +102,17 @@ class EditorViewDiff {
       this._updateListeners.splice(i, 1);
     }
   }
+
+  get leftDecorations() { return this._leftDecorations; }
+  get rightDecorations() { return this._rightDecorations; }
+  set leftDecorations(decorations) {
+    this._leftDecorations = decorations;
+  }
+  set rightDecorations(decorations) {
+    this._rightDecorations = decorations;
+  }
+
+  // Changeset:
   getChangeSet() {
     return diffToChangeSet(diffChars(
       this.left.state.doc.toString(),
@@ -119,6 +136,10 @@ class MergeView {
     this._update();
   }
   _update(left, right) {
+    render(html`
+    <div style="width: 2em; height: 100%; background-color: red;">
+    </div>
+    `, this.parent);
     console.log('update', this.parent, left, right, this.diff.getChangeSet());
   }
 }
@@ -137,7 +158,21 @@ Features:
       basicSetup,
     ],
   }),
-  parent: document.querySelector('#left'),
+  parent: document.querySelector('#a'),
+});
+
+let center = new EditorView({
+  state: EditorState.create({
+    doc:
+`CodeMirror 6's merge addon displays diffs.
+Features:
+- all panes are editable
+- align changed sections`,
+    extensions: [
+      basicSetup,
+    ],
+  }),
+  parent: document.querySelector('#b'),
 });
 
 let right = new EditorView({
@@ -154,11 +189,16 @@ Features:
       basicSetup,
     ],
   }),
-  parent: document.querySelector('#right'),
+  parent: document.querySelector('#c'),
 });
 
-let merge = new MergeView({
+let mergeLeft = new MergeView({
   left,
+  right: center,
+  parent: document.querySelector('#ab'),
+});
+let mergeRight = new MergeView({
+  left: center,
   right,
-  parent: document.querySelector('#merge'),
+  parent: document.querySelector('#bc'),
 });
