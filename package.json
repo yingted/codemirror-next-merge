@@ -4,7 +4,9 @@
   "description": "demo project for codemirror-next-merge",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "npx esbuild demo.mjs --bundle --outfile=demo.js",
+    "serve": "http-server"
   },
   "repository": {
     "type": "git",
@@ -17,6 +19,12 @@
   },
   "homepage": "https://github.com/yingted/codemirror-next-merge-demo#readme",
   "dependencies": {
-    "@codemirror/next": "^0.15.0"
+    "@codemirror/next": "^0.15.0",
+    "codemirror-next-merge": "git+ssh://git@github.com/yingted/codemirror-next-merge.git",
+    "diff": "^5.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.8.20",
+    "http-server": "^0.12.3"
   }
 }
