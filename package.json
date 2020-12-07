@@ -1,0 +1,22 @@
+{
+  "name": "codemirror-next-merge-demo",
+  "version": "1.0.0",
+  "description": "demo project for codemirror-next-merge",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yingted/codemirror-next-merge-demo.git"
+  },
+  "author": "Ted Ying <yingted@gmail.com>",
+  "license": "(MIT OR GPL-3.0)",
+  "bugs": {
+    "url": "https://github.com/yingted/codemirror-next-merge-demo/issues"
+  },
+  "homepage": "https://github.com/yingted/codemirror-next-merge-demo#readme",
+  "dependencies": {
+    "@codemirror/next": "^0.15.0"
+  }
+}
