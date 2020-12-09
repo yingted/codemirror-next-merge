@@ -3,7 +3,7 @@ import {ViewPlugin, Decoration, WidgetType} from '@codemirror/next/view';
 import {ChangeSet, StateField, StateEffect} from '@codemirror/next/state';
 import {StyleModule} from 'style-mod';
 import {RangeSet} from '@codemirror/next/rangeset';
-import {diffChars} from 'diff';
+import {diffChars, diffWords, diffLines} from 'diff';
 import {html, render} from 'lit-html';
 
 function assert(cond) {
@@ -57,64 +57,12 @@ function diffToChangeSet(diff) {
   }
   return ChangeSet.of(changes, oldOffset);
 }
+
 /**
- * Convert a ChangeSet to a diff.
- * Usage:
- * diff = changeSetToDiff(changeSet, doc.toString());
- * @param {ChangeSet} changeSet
- * @param {string} a
- * @returns {array<{value: string, added: boolean-like, removed: boolean-like}>}
+ * A hidden changeset, diffbase, or remote to diff against.
+ * To get the value:
+ * changeSet = view.state.field(csf.field);
  */
-function changeSetToDiff(changeSet, a) {
-  let gaps = [];
-  changeSet.iterGaps(function(posA, posB, length) {
-    gaps.push({
-      start: posA,
-      span: {
-        value: a.substring(posA, posA + length),
-        added: false,
-        removed: false,
-      },
-    });
-  });
-
-  let changes = [];
-  changeSet.iterChanges(function(fromA, toA, fromB, toB, inserted) {
-    // Deletion:
-    if (fromA < toA) {
-      changes.push({
-        start: fromA,
-        span: {
-          value: a.substring(fromA, toA),
-          added: false,
-          removed: true,
-        },
-      });
-    }
-    // Insertion:
-    if (fromB < toB) {
-      changes.push({
-        start: fromA,
-        span: {
-          value: inserted.toString(),
-          added: true,
-          removed: false,
-        },
-      });
-    }
-  });
-
-  let merged = new Array(gaps.length + changes.length);
-  for (let gi = 0, ci = 0, mi = 0; gi < gaps.length || ci < changes.length;) {
-    if (gi < gaps.length && (ci === changes.length || gaps[gi].start <= changes[ci].start)) {
-      merged[mi++] = gaps[gi++].span;
-    } else {
-      merged[mi++] = changes[ci++].span;
-    }
-  }
-  return merged;
-}
-
 class ChangeSetField {
   /**
    * @param {EditorState -> Value} getDefault
@@ -139,41 +87,50 @@ class ChangeSetField {
     });
     this.extension = this.field;
   }
+  static _diffChars(src, dst) {
+    return diffToChangeSet(diffChars(src, dst));
+  }
+  static _diffWords(src, dst) {
+    return diffToChangeSet(diffWords(src, dst));
+  }
+  static _diffLines(src, dst) {
+    return diffToChangeSet(diffLines(src, dst));
+  }
+  static _defaultDiff = ChangeSetField._diffLines;
   /**
-   * Usage: view.dispatch({effects: p.setChangeSetEffect(changeSet)});
+   * Usage: dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
    */
   setChangeSetEffect(changeSet) {
     return this.set.of(changeSet);
   }
   /**
-   * Usage: view.dispatch({effects: p.setTargetEffect(view.state, target)});
+   * Usage: dstView.dispatch({effects: csf.setTargetEffect(srcView.state, target)});
    * @param {EditorState} state
    * @param {string} target
    * @return {StateEffect<ChangeSet>}
    */
-  setTargetEffect(state, target) {
-    let changeSet = diffToChangeSet(diffChars(state.doc.toString(), target));
+  setTargetEffect(state, target, diff) {
+    diff = diff ?? ChangeSetField._defaultDiff;
+    let changeSet = diff(target, state.doc.toString());
     return this.setChangeSetEffect(changeSet);
   }
   /**
-   * Usage: view1.dispatch({reconfigure: {append: p.syncTargetEffect(view2)}});
-   * @param {EditorView} view
+   * Usage: srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
+   * @param {EditorView} dstView the view to update
    * @param {(localValue: ChangeSet, localState: EditorState, remoteUpdate: ViewUpdate)} diff
    */
-  syncTargetExtension(view, diff) {
+  syncTargetExtension(dstView, diff) {
+    diff = diff ?? ChangeSetField._defaultDiff;
     return EditorView.updateListener.of(update => {
       if (update.docChanged) {
-        let changeSet;
-        if (diff) {
-          changeSet = diff(view.state.field(this.field), view.state, update);
-        } else {
-          changeSet = diffToChangeSet(diffChars(
-            view.state.doc.toString(), update.state.doc.toString()));
-        }
-        view.dispatch({effects: this.setChangeSet(changeSet)});
+        let changeSet = diff(dstView.state.doc.toString(), update.state.doc.toString());
+        dstView.dispatch({effects: this.setChangeSetEffect(changeSet)});
       }
     });
   }
+  /**
+   * Create a changeset field with an initial value.
+   */
   static withDefault(value) {
     return new ChangeSetField(_ => value);
   }
@@ -183,11 +140,11 @@ class ChangeSetField {
  * View that renders a changeset to an editor.
  * The changeset is a ChangeSetField.
  */
-class ChangeSetPlugin {
+class ChangeSetDecorations {
   constructor(view, styles, changeSetField) {
     this.view = view;
     this.styles = styles;
-    this.changeSetField = changeSetField;
+    this.changeSetField = changeSetField.field;
 
     this.decorations = this._getDecorations(view);
   }
@@ -199,18 +156,6 @@ class ChangeSetPlugin {
     let ranges = [];
 
     changeSet.iterGaps((posA, posB, length) => {
-      // Padding:
-      let paddingLines = 0;  // TODO
-      ranges.push({
-        from: posA,
-        to: posA,
-        value: Decoration.widget({
-          widget: new TemplateWidget(html`<span class=${this.styles.padding}>${new Array(paddingLines+ 1).join('\n')}</span>`),
-          side: -1,
-          block: false,
-        }),
-      });
-
       // Unchanged:
       ranges.push({
         from: posA,
@@ -250,164 +195,69 @@ class ChangeSetPlugin {
       this.decorations = this._getDecorations(update.view);
     }
   }
-  set(state, value) {
-    
-  }
 
-  static makeExtension(styles, changeSetField) {
-    return ViewPlugin.define(view => new ChangeSetPlugin(view, styles, changeSetField), {
+  static _makeExtension(styles, changeSetField) {
+    return ViewPlugin.define(view => new ChangeSetDecorations(view, styles, changeSetField), {
       decorations: v => v.decorations,
     });
   }
-  static defaultExtension = (function() {
-    let changeSetField = ChangeSetField.withDefault(ChangeSet.of([
-      {
-        from: 0,
-        to: 4,
-        insert: '',
-      },
-      {
-        from: 4,
-        to: 4,
-        insert: 'abc\ndef',
-      },
-    ], /*length=*/100));
+  static _defaultStyle = EditorView.styleModule.of(new StyleModule({
+    '.insert': {
+      'background-color': 'rgba(0, 255, 0, 0.5)',
+    },
+    '.delete': {
+      'text-decoration': 'line-through',
+      'background-color': 'rgba(255, 0, 0, 0.5)',
+    },
+  }));
+  /**
+   * Extension to show proposed changes.
+   */
+  static futureExtension(changeSetField) {
     return [
-      ChangeSetPlugin.makeExtension({
+      ChangeSetDecorations._makeExtension({
         insert: 'insert',
         delete: 'delete',
         unchanged: 'unchanged',
-        padding: 'padding',
       }, changeSetField),
-      EditorView.styleModule.of(new StyleModule({
-        '.insert': {
-          'background-color': 'rgba(0, 255, 0, 0.5)',
-        },
-        '.delete': {
-          'text-decoration': 'line-through',
-          'background-color': 'rgba(255, 0, 0, 0.5)',
-        },
-      })),
+      ChangeSetDecorations._defaultStyle,
       changeSetField,
     ];
-  })();
-}
-
-class EditorViewDiff {
-  /**
-   * Construct this diff and attach it to two editor views.
-   */
-  constructor(left, right) {
-    this._updateListeners = [];
-    this.left = left;
-    this.right = right;
-    this._leftDecorations = RangeSet.empty;
-    this._rightDecorations = RangeSet.empty;
-
-    this.left.dispatch(this.left.state.update({
-      reconfigure: {
-        append: EditorView.updateListener.of(this._onUpdateLeft.bind(this)),
-      },
-    }));
-    this.right.dispatch(this.right.state.update({
-      reconfigure: {
-        append: EditorView.updateListener.of(this._onUpdateRight.bind(this)),
-      },
-    }));
-  }
-
-  // Updates:
-  _emptyUpdate(lr) {
-    return {
-      changes: ChangeSet.empty(lr.state.doc.length),
-      prevState: lr.state,
-      view: lr,
-      state: lr.state,
-      transactions: [],
-      viewportChanged: false,
-      heightChanged: false,
-      geometryChanged: false,
-      focusChanged: false,
-      docChanged: false,
-      selectionSet: false,
-    };
-  }
-  _onUpdateLeft(update) {
-    this._onUpdate(update, this._emptyUpdate(this.right));
-  }
-  _onUpdateRight(update) {
-    this._onUpdate(this._emptyUpdate(this.left), update);
-  }
-  _onUpdate(leftUpdate, rightUpdate) {
-    for (let onupdate of this._updateListeners) {
-      onupdate(leftUpdate, rightUpdate);
-    }
   }
   /**
-   * @param {(left: ViewUpdate, right: ViewUpdate) -> undefined} onupdate
+   * Extension to show past changes.
    */
-  addUpdateListener(onupdate) {
-    if (this._updateListeners.indexOf(onupdate) === -1) {
-      this._updateListeners.push(onupdate);
-    }
-  }
-  addUpdateListenerAndCall(onupdate) {
-    this.addUpdateListener(onupdate);
-    onupdate(this._emptyUpdate(this.left), this._emptyUpdate(this.right));
-  }
-  removeUpdateListener(onupdate) {
-    let i = this._updateListeners.indexOf(onupdate);
-    if (i !== -1) {
-      this._updateListeners.splice(i, 1);
-    }
-  }
-
-  get leftDecorations() { return this._leftDecorations; }
-  get rightDecorations() { return this._rightDecorations; }
-  set leftDecorations(decorations) {
-    this._leftDecorations = decorations;
-  }
-  set rightDecorations(decorations) {
-    this._rightDecorations = decorations;
-  }
-
-  // Changeset:
-  getChangeSet() {
-    return diffToChangeSet(diffChars(
-      this.left.state.doc.toString(),
-      this.right.state.doc.toString()));
+  static pastExtension(changeSetField) {
+    return [
+      ChangeSetDecorations._makeExtension({
+        insert: 'delete',
+        delete: 'insert',
+        unchanged: 'unchanged',
+      }, changeSetField),
+      ChangeSetDecorations._defaultStyle,
+      changeSetField,
+    ];
   }
 }
 
-class MergeView {
-  /**
-   * @param {EditorView} options.left
-   * @param {EditorView} options.right
-   * @param {EditorViewDiff} options.diff
-   * @param {Element} options.parent
-   */
-  constructor(options) {
-    this.left = options.left;
-    this.right = options.right;
-    this.diff = options.diff || new EditorViewDiff(this.left, this.right);
-    this.parent = options.parent;
-    this.diff.addUpdateListenerAndCall(this._update.bind(this));
-    this._updated = false;
-  }
-  _update(left, right) {
-    // Deduplicate updates:
-    if (this._updated && !(left.docChanged || left.viewportChanged || right.docChanged || right.viewportChanged)) {
-      return;
-    }
-    this._updated = true;
+/**
+ * Render a diff of srcView to dstView, to dstView.
+ */
+function watchAndDiffBackward(srcView, dstView) {
+  let csf = ChangeSetField.withDefault(ChangeSet.empty(dstView.length));
+  dstView.dispatch({reconfigure: {append: ChangeSetDecorations.pastExtension(csf)}});
+  dstView.dispatch({effects: csf.setTargetEffect(srcView.state, dstView.state.doc.toString())});
+  srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
+}
 
-    render(html`
-      <div style="width: 2em; height: 100%;">
-      </div>
-      `, this.parent);
-    let diff = changeSetToDiff(this.diff.getChangeSet(), this.left.state.doc.toString());
-    console.log('update', this.parent, diff);
-  }
+/**
+ * Render a diff of srcView to dstView, to srcView.
+ */
+function watchAndDiffForward(srcView, dstView) {
+  let csf = ChangeSetField.withDefault(ChangeSet.empty(srcView.length));
+  srcView.dispatch({reconfigure: {append: ChangeSetDecorations.futureExtension(csf)}});
+  srcView.dispatch({effects: csf.setTargetEffect(dstView.state, srcView.state.doc.toString())});
+  dstView.dispatch({reconfigure: {append: csf.syncTargetExtension(srcView)}});
 }
 
 let left = new EditorView({
@@ -422,7 +272,6 @@ Features and limitations:
 + 2-way only: optionally collapse unchanged lines`,
     extensions: [
       basicSetup,
-      ChangeSetPlugin.defaultExtension,
     ],
   }),
   parent: document.querySelector('#a'),
@@ -433,10 +282,9 @@ let center = new EditorView({
     doc:
 `CodeMirror 6's merge addon displays diffs.
 Features and limitations:
-+ align changed sections`,
++ unified diff`,
     extensions: [
       basicSetup,
-      ChangeSetPlugin.defaultExtension,
     ],
   }),
   parent: document.querySelector('#b'),
@@ -447,25 +295,14 @@ let right = new EditorView({
     doc:
 `CodeMirror 6's merge addon displays diffs.
 Features and limitations:
-+ n-way diffs
 + align changed sections
-- pad-to-align is mandatory
 + collapse unchanged lines`,
     extensions: [
       basicSetup,
-      ChangeSetPlugin.defaultExtension,
     ],
   }),
   parent: document.querySelector('#c'),
 });
 
-// let mergeLeft = new MergeView({
-//   left,
-//   right: center,
-//   parent: document.querySelector('#ab'),
-// });
-// let mergeRight = new MergeView({
-//   left: center,
-//   right,
-//   parent: document.querySelector('#bc'),
-// });
+watchAndDiffForward(left, center);
+watchAndDiffBackward(center, right);
