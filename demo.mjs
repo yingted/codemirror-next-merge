@@ -88,16 +88,18 @@ class ChangeSetField {
     });
     this.extension = this.field;
   }
-  static _diffChars(src, dst) {
+
+  // Diff functions:
+  static diffChars(src, dst) {
     return diffToChangeSet(diffChars(src, dst));
   }
-  static _diffWords(src, dst) {
+  static diffWords(src, dst) {
     return diffToChangeSet(diffWords(src, dst));
   }
-  static _diffLines(src, dst) {
+  static diffLines(src, dst) {
     return diffToChangeSet(diffLines(src, dst));
   }
-  static _diffSemantic(src, dst) {
+  static diffSemantic(src, dst) {
     let d = new diff_match_patch();
     let diffs = d.diff_main(src, dst);
     d.diff_cleanupSemantic(diffs);
@@ -106,7 +108,9 @@ class ChangeSetField {
       diffs.map(([type, value]) =>
         ({value, added: type === 1, removed: type === -1})));
   }
-  static _defaultDiff = ChangeSetField._diffSemantic;
+  static diffDefault = ChangeSetField.diffSemantic;
+
+  // Effects:
   /**
    * Usage: dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
    */
@@ -120,10 +124,12 @@ class ChangeSetField {
    * @return {StateEffect<ChangeSet>}
    */
   setNewTextEffect(state, target, diff) {
-    diff = diff ?? ChangeSetField._defaultDiff;
+    diff = diff ?? ChangeSetField.diffDefault;
     let changeSet = diff(target, state.doc.toString());
     return this.setChangeSetEffect(changeSet);
   }
+
+  // Factories:
   /**
    * Usage:
    * dstView.dispatch({reconfigure: {append: ChangeSetField.syncTargetExtension(srcView)}});
@@ -132,7 +138,7 @@ class ChangeSetField {
    * @returns {{extension: Extension, changeSetField: ChangeSetField}}
    */
   static syncTargetExtension(srcView, diff) {
-    diff = diff ?? ChangeSetField._defaultDiff;
+    diff = diff ?? ChangeSetField.diffDefault;
     let srcState = srcView.state;
     let lastDstView = null;
     let updateDstView = function updateDstView(dstView, dstState) {
