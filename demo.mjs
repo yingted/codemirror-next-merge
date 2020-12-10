@@ -5,6 +5,7 @@ import {StyleModule} from 'style-mod';
 import {RangeSet} from '@codemirror/next/rangeset';
 import {diffChars, diffWords, diffLines} from 'diff';
 import {html, render} from 'lit-html';
+import {diff_match_patch} from 'diff-match-patch';
 
 function assert(cond) {
   console.assert(cond);
@@ -96,7 +97,16 @@ class ChangeSetField {
   static _diffLines(src, dst) {
     return diffToChangeSet(diffLines(src, dst));
   }
-  static _defaultDiff = ChangeSetField._diffLines;
+  static _diffSemantic(src, dst) {
+    let d = new diff_match_patch();
+    let diffs = d.diff_main(src, dst);
+    d.diff_cleanupSemantic(diffs);
+
+    return diffToChangeSet(
+      diffs.map(([type, value]) =>
+        ({value, added: type === 1, removed: type === -1})));
+  }
+  static _defaultDiff = ChangeSetField._diffSemantic;
   /**
    * Usage: dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
    */
@@ -115,7 +125,8 @@ class ChangeSetField {
     return this.setChangeSetEffect(changeSet);
   }
   /**
-   * Usage: srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
+   * Usage:
+   * srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
    * @param {EditorView} dstView the view to update
    * @param {(localValue: ChangeSet, localState: EditorState, remoteUpdate: ViewUpdate)} diff
    */
@@ -239,6 +250,11 @@ class ChangeSetDecorations {
     ];
   }
 }
+
+// class AcceptChangeGutter {
+//   static makeExtension(changeSetField) {
+//   }
+// }
 
 /**
  * Render a diff of srcView to dstView, to dstView.

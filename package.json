@@ -22,6 +22,7 @@
     "@codemirror/next": "^0.15.0",
     "codemirror-next-merge": "git+ssh://git@github.com/yingted/codemirror-next-merge.git",
     "diff": "^5.0.0",
+    "diff-match-patch": "^1.0.5",
     "lit-html": "^1.3.0",
     "style-mod": "^3.2.0"
   },
