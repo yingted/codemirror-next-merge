@@ -114,30 +114,62 @@ class ChangeSetField {
     return this.set.of(changeSet);
   }
   /**
-   * Usage: dstView.dispatch({effects: csf.setTargetEffect(srcView.state, target)});
+   * Usage: dstView.dispatch({effects: csf.setNewTextEffect(srcView.state, target)});
    * @param {EditorState} state
    * @param {string} target
    * @return {StateEffect<ChangeSet>}
    */
-  setTargetEffect(state, target, diff) {
+  setNewTextEffect(state, target, diff) {
     diff = diff ?? ChangeSetField._defaultDiff;
     let changeSet = diff(target, state.doc.toString());
     return this.setChangeSetEffect(changeSet);
   }
   /**
    * Usage:
-   * srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
-   * @param {EditorView} dstView the view to update
-   * @param {(localValue: ChangeSet, localState: EditorState, remoteUpdate: ViewUpdate)} diff
+   * dstView.dispatch({reconfigure: {append: ChangeSetField.syncTargetExtension(srcView)}});
+   * @param {EditorView} srcView the view to watch
+   * @param {(old: string, new: string) -> ChangeSet} diff
+   * @returns {{extension: Extension, changeSetField: ChangeSetField}}
    */
-  syncTargetExtension(dstView, diff) {
+  static syncTargetExtension(srcView, diff) {
     diff = diff ?? ChangeSetField._defaultDiff;
-    return EditorView.updateListener.of(update => {
-      if (update.docChanged) {
-        let changeSet = diff(dstView.state.doc.toString(), update.state.doc.toString());
-        dstView.dispatch({effects: this.setChangeSetEffect(changeSet)});
-      }
+    let srcState = srcView.state;
+    let lastDstView = null;
+    let updateDstView = function updateDstView(dstView, dstState) {
+      let changeSet = diff(dstState.doc.toString(), srcState.doc.toString());
+      dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+    };
+    srcView.dispatch({
+      reconfigure: {
+        append: EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            srcState = update.state;
+            if (lastDstView !== null) {
+              updateDstView(lastDstView, lastDstView.state);
+            }
+          }
+        }),
+      },
     });
+    let csf = new ChangeSetField(dstState => {
+      return diff(dstState.doc.toString(), srcState.doc.toString());
+    });
+    return {
+      changeSetField: csf,
+      extension: [
+        csf,
+        ViewPlugin.define(dstView => {
+          lastDstView = dstView;
+          return true;
+        }),
+        EditorView.updateListener.of(update => {
+          lastDstView = update.view;
+          if (update.docChanged) {
+            updateDstView(update.view, update.state);
+          }
+        }),
+      ],
+    };
   }
   /**
    * Create a changeset field with an initial value.
@@ -260,20 +292,18 @@ class ChangeSetDecorations {
  * Render a diff of srcView to dstView, to dstView.
  */
 function watchAndDiffBackward(srcView, dstView) {
-  let csf = ChangeSetField.withDefault(ChangeSet.empty(dstView.length));
-  dstView.dispatch({reconfigure: {append: ChangeSetDecorations.pastExtension(csf)}});
-  dstView.dispatch({effects: csf.setTargetEffect(srcView.state, dstView.state.doc.toString())});
-  srcView.dispatch({reconfigure: {append: csf.syncTargetExtension(dstView)}});
+  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(srcView);
+  dstView.dispatch({reconfigure: {append: extension}});
+  dstView.dispatch({reconfigure: {append: ChangeSetDecorations.pastExtension(changeSetField)}});
 }
 
 /**
  * Render a diff of srcView to dstView, to srcView.
  */
 function watchAndDiffForward(srcView, dstView) {
-  let csf = ChangeSetField.withDefault(ChangeSet.empty(srcView.length));
-  srcView.dispatch({reconfigure: {append: ChangeSetDecorations.futureExtension(csf)}});
-  srcView.dispatch({effects: csf.setTargetEffect(dstView.state, srcView.state.doc.toString())});
-  dstView.dispatch({reconfigure: {append: csf.syncTargetExtension(srcView)}});
+  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(dstView);
+  srcView.dispatch({reconfigure: {append: extension}});
+  srcView.dispatch({reconfigure: {append: ChangeSetDecorations.futureExtension(changeSetField)}});
 }
 
 let left = new EditorView({
