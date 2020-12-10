@@ -1,6 +1,7 @@
 import {EditorView, EditorState, basicSetup} from '@codemirror/next/basic-setup';
 import {ViewPlugin, Decoration, WidgetType} from '@codemirror/next/view';
 import {ChangeSet, StateField, StateEffect} from '@codemirror/next/state';
+import {gutter, GutterMarker} from '@codemirror/next/gutter';
 import {StyleModule} from 'style-mod';
 import {RangeSet} from '@codemirror/next/rangeset';
 import {diffChars, diffWords, diffLines} from 'diff';
@@ -228,7 +229,7 @@ class ChangeSetDecorations {
           from: toA,
           to: toA,
           value: Decoration.widget({
-            widget: new TemplateWidget(html`<span class=${this.styles.insert}>${inserted.toString()}</span>`),
+            widget: new TemplateWidget(html`<span class=${this.styles.insert} aria-hidden="true">${inserted.toString()}</span>`),
             side: 1,
             block: false,
           }),
@@ -289,10 +290,103 @@ class ChangeSetDecorations {
   }
 }
 
-// class AcceptChangeGutter {
-//   static makeExtension(changeSetField) {
-//   }
-// }
+class AcceptChangeGutterMarker extends GutterMarker {
+  constructor(template) {
+    super();
+    this._template = template;
+  }
+  eq(other) {
+    return this === other;
+  }
+  toDOM(view) {
+    let div = document.createElement('DIV');
+    render(this._template, div);
+    assert(div.firstElementChild === div.lastElementChild);
+    return div.firstElementChild;
+  }
+}
+
+/**
+ * View that renders "accept change" buttons.
+ */
+class AcceptChangeGutter {
+  /**
+   * @param {ChangeSetField} changeSetField the ChangeSetField to render
+   * @param {string} text text for the button
+   * @param {string} label aria-label for the button
+   */
+  static _makeExtension(changeSetField, text, label) {
+    let lastView = null;
+    return [
+      ViewPlugin.define(view => {
+        lastView = view;
+        return true;
+      }),
+      gutter({
+        markers(state) {
+          /** @type {array<Range<GutterMarker>>} */
+          let ranges = [];
+
+          let doc = state.doc;
+          let changeSet = state.field(changeSetField.field);
+          let gutters = [];
+          changeSet.iterChanges((fromA, toA, fromB, toB, inserted) => {
+            // Find the line:
+            let line = doc.lineAt(fromA);
+            // Avoid showing the marker on the "\n" of the previous line:
+            if (fromA === line.to && fromA + 1 <= doc.length && (inserted.length === 0 || inserted.sliceString(0, 1) === '\n')) {
+              line = doc.lineAt(fromA + 1);
+            }
+
+            // Find the gutter:
+            let g;
+            if (gutters.length > 0 && gutters[gutters.length - 1].from === line.from) {
+              g = gutters[gutters.length - 1];
+            } else {
+              g = {from: line.from, changeSpec: []};
+              gutters.push(g);
+            }
+
+            g.changeSpec.push({
+              from: fromA,
+              to: toA,
+              insert: inserted,
+            });
+          });
+
+          gutters.forEach(({from, changeSpec}) => {
+            ranges.push({
+              from,
+              to: from,
+              value: new AcceptChangeGutterMarker(
+                html`<button aria-label=${label} @click=${e => {
+                  if (lastView === null) return;
+                  let changeSet = ChangeSet.of(changeSpec, doc.length);
+                  lastView.dispatch({changes: changeSet});
+                }}>${text}</button>`
+              ),
+            });
+          });
+
+          return RangeSet.of(ranges, /*sort=*/false);
+        },
+      }),
+    ];
+  }
+
+  /**
+   * Extension to accept proposed changes.
+   */
+  static acceptExtension(changeSetField) {
+    return AcceptChangeGutter._makeExtension(changeSetField, '✓', 'accept');
+  }
+  /**
+   * Extension to revert past changes.
+   */
+  static revertExtension(changeSetField) {
+    return AcceptChangeGutter._makeExtension(changeSetField, '✗', 'revert');
+  }
+}
 
 /**
  * Render a diff of srcView to dstView, to dstView.
@@ -300,7 +394,10 @@ class ChangeSetDecorations {
 function watchAndDiffBackward(srcView, dstView) {
   let {changeSetField, extension} = ChangeSetField.syncTargetExtension(srcView);
   dstView.dispatch({reconfigure: {append: extension}});
-  dstView.dispatch({reconfigure: {append: ChangeSetDecorations.pastExtension(changeSetField)}});
+  dstView.dispatch(
+    {reconfigure: {append: ChangeSetDecorations.pastExtension(changeSetField)}},
+    {reconfigure: {append: AcceptChangeGutter.revertExtension(changeSetField)}},
+  );
 }
 
 /**
@@ -309,7 +406,10 @@ function watchAndDiffBackward(srcView, dstView) {
 function watchAndDiffForward(srcView, dstView) {
   let {changeSetField, extension} = ChangeSetField.syncTargetExtension(dstView);
   srcView.dispatch({reconfigure: {append: extension}});
-  srcView.dispatch({reconfigure: {append: ChangeSetDecorations.futureExtension(changeSetField)}});
+  srcView.dispatch(
+    {reconfigure: {append: ChangeSetDecorations.futureExtension(changeSetField)}},
+    {reconfigure: {append: AcceptChangeGutter.acceptExtension(changeSetField)}},
+  );
 }
 
 let left = new EditorView({
@@ -334,6 +434,7 @@ let center = new EditorView({
     doc:
 `CodeMirror 6's merge addon displays diffs.
 Features and limitations:
++ mobile-first
 + unified diff`,
     extensions: [
       basicSetup,
@@ -347,7 +448,8 @@ let right = new EditorView({
     doc:
 `CodeMirror 6's merge addon displays diffs.
 Features and limitations:
-+ align changed sections
++ mobile-first
++ unified diff
 + collapse unchanged lines`,
     extensions: [
       basicSetup,
