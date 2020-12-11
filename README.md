@@ -1,6 +1,13 @@
 # codemirror-next-merge
 Unified diff view for CodeMirror 6.
 
+Features:
+
+- unified diff view
+- diff against a string or another editor
+- button to accept chunks
+- fold gaps of unchanged text
+
 Demo:
 [live](https://yingted.github.io/codemirror-next-merge/demo.html)
 [local](/demo.html)
