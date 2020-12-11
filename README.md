@@ -1,5 +1,5 @@
 ```
 npm install
 npm run build
-npm run serve  # demo
+npm run serve  # open demo.html in your browser
 ```
