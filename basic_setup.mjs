@@ -1,7 +1,7 @@
 import {foldAll} from '@codemirror/next/fold';
 import {acceptMarker, revertMarker, applyChunkGutter} from './apply_chunk.mjs';
 import {ChangeSetField} from './changeset_field.mjs';
-import {ChangeSetDecorations} from './decorations.mjs';
+import {futureExtension, pastExtension} from './decorations.mjs';
 import {foldGaps} from './fold_gaps.mjs';
 
 /**
@@ -11,7 +11,7 @@ export function watchAndDiffBackward(srcView, dstView) {
   let {changeSetField, extension} = ChangeSetField.syncTargetExtension(srcView);
   dstView.dispatch({reconfigure: {append: extension}});
   dstView.dispatch(
-    {reconfigure: {append: ChangeSetDecorations.pastExtension(changeSetField)}},
+    {reconfigure: {append: pastExtension(changeSetField)}},
     {reconfigure: {append: applyChunkGutter(changeSetField, revertMarker)}},
     {reconfigure: {append: foldGaps(changeSetField, /*margin=*/1)}},
   );
@@ -25,7 +25,7 @@ export function watchAndDiffForward(srcView, dstView) {
   let {changeSetField, extension} = ChangeSetField.syncTargetExtension(dstView);
   srcView.dispatch({reconfigure: {append: extension}});
   srcView.dispatch(
-    {reconfigure: {append: ChangeSetDecorations.futureExtension(changeSetField)}},
+    {reconfigure: {append: futureExtension(changeSetField)}},
     {reconfigure: {append: applyChunkGutter(changeSetField, acceptMarker)}},
     {reconfigure: {append: foldGaps(changeSetField, /*margin=*/1)}},
   );
