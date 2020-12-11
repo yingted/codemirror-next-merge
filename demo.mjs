@@ -2,6 +2,8 @@ import {EditorView, EditorState, basicSetup} from '@codemirror/next/basic-setup'
 import {ViewPlugin, Decoration, WidgetType} from '@codemirror/next/view';
 import {ChangeSet, StateField, StateEffect} from '@codemirror/next/state';
 import {gutter, GutterMarker} from '@codemirror/next/gutter';
+import {foldAll} from '@codemirror/next/fold';
+import {foldService} from '@codemirror/next/language';
 import {StyleModule} from 'style-mod';
 import {RangeSet} from '@codemirror/next/rangeset';
 import {diffChars, diffWords, diffLines} from 'diff';
@@ -88,6 +90,16 @@ class ChangeSetField {
       },
     });
     this.extension = this.field;
+    /** @type {Command} */
+    this.acceptAll = this._acceptAll.bind(this);
+  }
+
+  /**
+   * @param {EditorView} target
+   * @returns {boolean}
+   */
+  _acceptAll(target) {
+    target.dispatch({changes: target.field(this.field)});
   }
 
   // Diff functions:
@@ -124,8 +136,7 @@ class ChangeSetField {
    * @param {string} target
    * @return {StateEffect<ChangeSet>}
    */
-  setNewTextEffect(state, target, diff) {
-    diff = diff ?? ChangeSetField.diffDefault;
+  setNewTextEffect(state, target, diff = ChangeSetField.diffDefault) {
     let changeSet = diff(target, state.doc.toString());
     return this.setChangeSetEffect(changeSet);
   }
@@ -138,8 +149,7 @@ class ChangeSetField {
    * @param {(old: string, new: string) -> ChangeSet} diff
    * @returns {{extension: Extension, changeSetField: ChangeSetField}}
    */
-  static syncTargetExtension(srcView, diff) {
-    diff = diff ?? ChangeSetField.diffDefault;
+  static syncTargetExtension(srcView, diff = ChangeSetField.diffDefault) {
     let srcState = srcView.state;
     let lastDstView = null;
     let updateDstView = function updateDstView(dstView, dstState) {
@@ -290,7 +300,7 @@ class ChangeSetDecorations {
   }
 }
 
-class AcceptChangeGutterMarker extends GutterMarker {
+class TemplateGutterMarker extends GutterMarker {
   constructor(template) {
     super();
     this._template = template;
@@ -314,10 +324,12 @@ class AcceptChangeGutter {
    * @param {ChangeSetField} changeSetField the ChangeSetField to render
    * @param {string} text text for the button
    * @param {string} label aria-label for the button
+   * @returns {Extension}
    */
   static _makeExtension(changeSetField, text, label) {
     let lastView = null;
     return [
+      changeSetField,
       ViewPlugin.define(view => {
         lastView = view;
         return true;
@@ -358,7 +370,7 @@ class AcceptChangeGutter {
             ranges.push({
               from,
               to: from,
-              value: new AcceptChangeGutterMarker(
+              value: new TemplateGutterMarker(
                 html`<button aria-label=${label} @click=${e => {
                   if (lastView === null) return;
                   let changeSet = ChangeSet.of(changeSpec, doc.length);
@@ -389,6 +401,94 @@ class AcceptChangeGutter {
 }
 
 /**
+ * Code folding service for gaps.
+ */
+class FoldGaps {
+  /**
+   * @param {ChangeSetField} changeSetField the ChangeSetField to render
+   * @param {number} margin how much gap around the text
+   * @returns {Extension}
+   */
+  static makeExtension(changeSetField, margin = 3) {
+    /** @type {WeakMap<ChangeSet, WeakMap<Document, RangeSet<boolean>>>} */
+    let gapsWithMargins = new WeakMap();
+    return [
+      changeSetField,
+      foldService.of(function(state, lineStart, lineEnd) {
+        // Get the changeset and doc to compute the gaps for:
+        let changeSet = state.field(changeSetField.field);
+        let doc = state.doc;
+
+        // Get the gaps:
+        let gapsByDoc = gapsWithMargins.get(changeSet);
+        if (gapsByDoc === undefined) {
+          gapsByDoc = new WeakMap();
+          gapsWithMargins.set(changeSet, gapsByDoc);
+        }
+        let gaps = gapsByDoc.get(doc);
+        if (gaps === undefined) {
+          /** @type {Range<boolean>[]} */
+          let ranges = [];
+          changeSet.iterGaps((posA, posB, length) => {
+            // Get the first empty line:
+            let firstEmptyLine = doc.lineAt(posA);
+            if (posA > firstEmptyLine.from) {
+              // ++firstEmptyLine
+              if (firstEmptyLine.to === doc.length) return;
+              firstEmptyLine = doc.lineAt(firstEmptyLine.to + 1);
+            }
+
+            // Get the last empty line:
+            let lastEmptyLine = doc.lineAt(posA + length);
+            if (posA + length < lastEmptyLine.to) {
+              // --lastEmptyLine
+              if (lastEmptyLine.from === 0) return;
+              lastEmptyLine = doc.lineAt(lastEmptyLine.from - 1);
+            }
+
+            // Skip `margin` lines:
+            if (firstEmptyLine.from > 0) {
+              for (let i = 0; i < margin; ++i) {
+                // ++firstEmptyLine
+                if (firstEmptyLine.to === doc.length) return;
+                firstEmptyLine = doc.lineAt(firstEmptyLine.to + 1);
+              }
+            }
+            if (lastEmptyLine.to < doc.length) {
+              for (let i = 0; i < margin; ++i) {
+                // --lastEmptyLine
+                if (lastEmptyLine.from === 0) return;
+                lastEmptyLine = doc.lineAt(lastEmptyLine.from - 1);
+              }
+            }
+
+            // Check the range is more than one line:
+            if (firstEmptyLine.from > lastEmptyLine.from) return;
+
+            ranges.push({
+              from: firstEmptyLine.from,
+              to: lastEmptyLine.to,
+              value: true,
+            });
+          });
+
+          gaps = RangeSet.of(ranges, /*sort=*/false);
+          gapsByDoc.set(doc, gaps);
+        }
+
+        // Return the gaps:
+        for (let it = gaps.iter(lineStart); it.value !== null && it.from <= lineEnd; it.next()) {
+          if (lineStart <= it.from) {
+            return {from: it.from, to: it.to};
+          }
+        }
+        return null;
+      }),
+    ];
+  }
+}
+
+/**
  * Render a diff of srcView to dstView, to dstView.
  */
 function watchAndDiffBackward(srcView, dstView) {
@@ -397,7 +497,9 @@ function watchAndDiffBackward(srcView, dstView) {
   dstView.dispatch(
     {reconfigure: {append: ChangeSetDecorations.pastExtension(changeSetField)}},
     {reconfigure: {append: AcceptChangeGutter.revertExtension(changeSetField)}},
+    {reconfigure: {append: FoldGaps.makeExtension(changeSetField, /*margin=*/1)}},
   );
+  foldAll(dstView);
 }
 
 /**
@@ -409,7 +511,9 @@ function watchAndDiffForward(srcView, dstView) {
   srcView.dispatch(
     {reconfigure: {append: ChangeSetDecorations.futureExtension(changeSetField)}},
     {reconfigure: {append: AcceptChangeGutter.acceptExtension(changeSetField)}},
+    {reconfigure: {append: FoldGaps.makeExtension(changeSetField, /*margin=*/1)}},
   );
+  foldAll(srcView);
 }
 
 let left = new EditorView({
