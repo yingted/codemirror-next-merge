@@ -1,6 +1,5 @@
 import {EditorView} from '@codemirror/next/basic-setup';
 import {ViewPlugin, Decoration, WidgetType} from '@codemirror/next/view';
-import {ChangeSet, StateField, StateEffect} from '@codemirror/next/state';
 import {StyleModule} from 'style-mod';
 import {RangeSet} from '@codemirror/next/rangeset';
 import {html, render} from 'lit-html';

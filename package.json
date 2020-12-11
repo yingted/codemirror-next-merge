@@ -21,7 +21,8 @@
   },
   "devDependencies": {
     "esbuild": "^0.8.20",
-    "http-server": "^0.12.3"
+    "http-server": "^0.12.3",
+    "jsdoc": "^3.6.6"
   },
   "keywords": [
     "editor"

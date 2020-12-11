@@ -28,11 +28,11 @@ class TemplateGutterMarker extends GutterMarker {
  * @typedef {(view: EditorView, chunk: ChangeSet, applyChunk: () -> undefined) -> GutterMarker} ApplyChunkMarker
  */
 /** @type {ApplyChunkMarker} */
-export acceptMarker(view, chunk, applyChunk) {
+export function acceptMarker(view, chunk, applyChunk) {
   return new TemplateGutterMarker(html`<button aria-label="accept" @click=${applyChunk}>✓</button>`);
 }
 /** @type {ApplyChunkMarker} */
-export revertMarker(view, chunk, applyChunk) {
+export function revertMarker(view, chunk, applyChunk) {
   return new TemplateGutterMarker(html`<button aria-label="revert" @click=${applyChunk}>✗</button>`);
 }
 
@@ -41,10 +41,10 @@ export revertMarker(view, chunk, applyChunk) {
  * @param {ChangeSetField} changeSetField the ChangeSetField to render
  * @param {ApplyChunkMarker} applyChunkMarker
  * Render a widget to apply the current chunk.
- * Pass acceptMarker or revertMarker to get pretty standard buttons.
+ * Pass acceptMarker or revertMarker to get accept or reject buttons.
  * @returns {Extension}
  */
-export applyChunkGutter(changeSetField, applyChunkMarker) {
+export function applyChunkGutter(changeSetField, applyChunkMarker) {
   let lastView = null;
   return [
     changeSetField,

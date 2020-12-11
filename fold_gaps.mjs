@@ -8,7 +8,7 @@ import {foldService} from '@codemirror/next/language';
  * @param {number} margin how much gap around the text
  * @returns {Extension}
  */
-export foldGaps(changeSetField, margin = 3) {
+export function foldGaps(changeSetField, margin = 3) {
   /** @type {WeakMap<ChangeSet, WeakMap<Document, RangeSet<boolean>>>} */
   let gapsWithMargins = new WeakMap();
   return [
