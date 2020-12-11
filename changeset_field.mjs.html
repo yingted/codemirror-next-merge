@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: changeset_field.mjs</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: changeset_field.mjs</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import {EditorView} from '@codemirror/next/basic-setup';
+import {ViewPlugin} from '@codemirror/next/view';
+import {ChangeSet, StateField, StateEffect} from '@codemirror/next/state';
+import * as diff from 'diff';
+import {diff_match_patch} from 'diff-match-patch';
+
+/**
+ * A single change, either a value was added, removed, or unchanged.
+ * @typedef {{value: string, added: boolean-like, removed: boolean-like}} Change
+ */
+
+/**
+ * Convert a diff to a ChangeSet.
+ * @example changeSet = diffToChangeSet(diff.diffChars('berry', 'strawberry'))
+ * @param {Change[]} diff
+ * @returns {ChangeSet}
+ */
+export function diffToChangeSet(diff) {
+  let oldOffset = 0;
+  let newOffset = 0;
+  let changes = [];
+  for (let {value, added, removed} of diff) {
+    if (added) {
+      changes.push({
+        from: oldOffset,
+        to: oldOffset,
+        insert: value,
+      });
+      newOffset += value.length;
+    } else if (removed) {
+      changes.push({
+        from: oldOffset,
+        to: oldOffset + value.length,
+        insert: '',
+      });
+      oldOffset += value.length;
+    } else {
+      oldOffset += value.length;
+      newOffset += value.length;
+    }
+  }
+  return ChangeSet.of(changes, oldOffset);
+}
+
+// Diff functions:
+/**
+ * A function that diffs src and dst and returns the changes.
+ * @callback DiffFunction
+ * @param {string} src the original string
+ * @param {string} dst the string after the change is applied
+ * @returns {ChangeSet}
+ */
+/** @type {DiffFunction} */
+export function diffChars(src, dst) {
+  return diffToChangeSet(diff.diffChars(src, dst));
+}
+/** @type {DiffFunction} */
+export function diffWords(src, dst) {
+  return diffToChangeSet(diff.diffWords(src, dst));
+}
+/** @type {DiffFunction} */
+export function diffLines(src, dst) {
+  return diffToChangeSet(diff.diffLines(src, dst));
+}
+/** @type {DiffFunction} */
+export function diffSemantic(src, dst) {
+  let d = new diff_match_patch();
+  let diffs = d.diff_main(src, dst);
+  d.diff_cleanupSemantic(diffs);
+
+  return diffToChangeSet(
+    diffs.map(([type, value]) =>
+      ({value, added: type === 1, removed: type === -1})));
+}
+/** @type {DiffFunction} */
+export var diffDefault = diffSemantic;
+
+/**
+ * A diff that's a function of the editor state.
+ * @callback EditorStateDiff
+ * @param {EditorState} state
+ * @returns {ChangeSet} the computed diff
+ */
+
+/**
+ * A hidden changeset, diffbase, or remote to diff against.
+ * To get the value:
+ * changeSet = view.state.field(csf.field);
+ */
+export class ChangeSetField {
+  /**
+   * @param {EditorStateDiff} getDefault
+   */
+  constructor(getDefault) {
+    /** @type {StateEffectType&lt;ChangeSet>} */
+    let set = StateEffect.define();
+    this.set = set;
+    /** @type {StateField&lt;ChangeSet>} */
+    this.field = StateField.define({
+      create(state) {
+        return getDefault(state);
+      },
+      update(value, tr) {
+        value = value.map(tr.changes, /*before=*/true);
+        for (let effect of tr.effects) {
+          if (effect.is(set)) {
+            value = effect.value;
+          }
+        }
+        return value;
+      },
+    });
+    this.extension = this.field;
+    /** @type {Command} */
+    this.acceptAll = this._acceptAll.bind(this);
+  }
+
+  /**
+   * @param {EditorView} target
+   * @returns {boolean}
+   */
+  _acceptAll(target) {
+    target.dispatch({changes: target.field(this.field)});
+    return true;
+  }
+
+  // Effects:
+  /**
+   * @example dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+   * @param {ChangeSet} changeSet
+   * @returns {StateEffect&lt;ChangeSet>}
+   */
+  setChangeSetEffect(changeSet) {
+    return this.set.of(changeSet);
+  }
+  /**
+   * @example dstView.dispatch({effects: csf.setNewTextEffect(srcView.state, target)});
+   * @param {EditorState} state
+   * @param {string} target
+   * @returns {StateEffect&lt;ChangeSet>}
+   */
+  setNewTextEffect(state, target, diff = diffDefault) {
+    let changeSet = diff(target, state.doc.toString());
+    return this.setChangeSetEffect(changeSet);
+  }
+
+  // Factories:
+  /**
+   * Create a changeset field with a target view.
+   * @example dstView.dispatch({reconfigure: {append: ChangeSetField.syncTargetExtension(srcView)}});
+   * @param {EditorView} srcView the view to watch
+   * @param {DiffFunction} diff
+   * @returns {{extension: Extension, changeSetField: ChangeSetField}}
+   */
+  static syncTargetExtension(srcView, diff = diffDefault) {
+    let srcState = srcView.state;
+    let lastDstView = null;
+    let updateDstView = function updateDstView(dstView, dstState) {
+      let changeSet = diff(dstState.doc.toString(), srcState.doc.toString());
+      dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+    };
+    srcView.dispatch({
+      reconfigure: {
+        append: EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            srcState = update.state;
+            if (lastDstView !== null) {
+              updateDstView(lastDstView, lastDstView.state);
+            }
+          }
+        }),
+      },
+    });
+    let csf = new ChangeSetField(dstState => {
+      return diff(dstState.doc.toString(), srcState.doc.toString());
+    });
+    return {
+      changeSetField: csf,
+      extension: [
+        csf,
+        ViewPlugin.define(dstView => {
+          lastDstView = dstView;
+          return true;
+        }),
+        EditorView.updateListener.of(update => {
+          lastDstView = update.view;
+          if (update.docChanged) {
+            updateDstView(update.view, update.state);
+          }
+        }),
+      ],
+    };
+  }
+
+  /**
+   * Create a changeset field with a target string.
+   * @example dstView.dispatch({reconfigure: {append: ChangeSetField.withString('target\ndocument')}});
+   * @param {string} string
+   * @returns {ChangeSetField}
+   */
+  static withString(string, diff = diffDefault) {
+    let updateDstView = function updateDstView(dstView, dstState) {
+      let changeSet = diff(dstState.doc.toString(), string);
+      dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+    };
+    let csf = new ChangeSetField(dstState => {
+      return diff(dstState.doc.toString(), string);
+    });
+    return {
+      changeSetField: csf,
+      extension: [
+        csf,
+        EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            updateDstView(update.view, update.state);
+          }
+        }),
+      ],
+    };
+  }
+
+  /**
+   * Create a changeset field with an initial value.
+   * @param {ChangeSet} value
+   * @returns {ChangeSetField}
+   */
+  static withDefault(value) {
+    return new ChangeSetField(_ => value);
+  }
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="ChangeSetDecorations.html">ChangeSetDecorations</a></li><li><a href="ChangeSetField.html">ChangeSetField</a></li><li><a href="TemplateGutterMarker.html">TemplateGutterMarker</a></li></ul><h3>Global</h3><ul><li><a href="global.html#acceptMarker">acceptMarker</a></li><li><a href="global.html#acceptString">acceptString</a></li><li><a href="global.html#acceptView">acceptView</a></li><li><a href="global.html#applyChunkGutter">applyChunkGutter</a></li><li><a href="global.html#diffChars">diffChars</a></li><li><a href="global.html#diffDefault">diffDefault</a></li><li><a href="global.html#diffLines">diffLines</a></li><li><a href="global.html#diffSemantic">diffSemantic</a></li><li><a href="global.html#diffToChangeSet">diffToChangeSet</a></li><li><a href="global.html#diffWords">diffWords</a></li><li><a href="global.html#foldGaps">foldGaps</a></li><li><a href="global.html#futureExtension">futureExtension</a></li><li><a href="global.html#pastExtension">pastExtension</a></li><li><a href="global.html#revertMarker">revertMarker</a></li><li><a href="global.html#revertString">revertString</a></li><li><a href="global.html#revertView">revertView</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.4</a> on Fri Dec 11 2020 06:58:46 GMT+0000 (Coordinated Universal Time)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
