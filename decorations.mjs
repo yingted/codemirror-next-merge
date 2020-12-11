@@ -75,7 +75,7 @@ export class ChangeSetDecorations {
 
       // Insertion:
       if (fromB < toB) {
-        let widget = this.widgets.insert(text.substring(fromA, toA));
+        let widget = this.widgets.insert(inserted);
         if (widget !== null) {
           ranges.push({
             from: toA,

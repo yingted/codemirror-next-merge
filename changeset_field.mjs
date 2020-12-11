@@ -182,6 +182,32 @@ export class ChangeSetField {
   }
 
   /**
+   * Create a changeset field with a target string.
+   * @param {string} string
+   * @returns {ChangeSetField}
+   */
+  static withString(string, diff = diffDefault) {
+    let updateDstView = function updateDstView(dstView, dstState) {
+      let changeSet = diff(dstState.doc.toString(), string);
+      dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+    };
+    let csf = new ChangeSetField(dstState => {
+      return diff(dstState.doc.toString(), string);
+    });
+    return {
+      changeSetField: csf,
+      extension: [
+        csf,
+        EditorView.updateListener.of(update => {
+          if (update.docChanged) {
+            updateDstView(update.view, update.state);
+          }
+        }),
+      ],
+    };
+  }
+
+  /**
    * Create a changeset field with an initial value.
    * @param {ChangeSet} value
    * @returns {ChangeSetField}
