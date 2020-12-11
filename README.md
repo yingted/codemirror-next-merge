@@ -1,5 +1,7 @@
 # codemirror-next-merge
-[Demo](https://yingted.github.io/codemirror-next-merge)
+Demo:
+[live](https://yingted.github.io/codemirror-next-merge/demo.html)
+[local](/demo.html)
 
 ## Usage
 ```bash
@@ -24,9 +26,8 @@ let view = new EditorView({
 ## Build
 ```
 npm install
-npm run build
-npm run jsdoc
-npm run serve
+npm run build-demo
+npm run serve-demo
 ```
 
 Then, open: http://127.0.0.1:8081/demo.html
