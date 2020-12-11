@@ -16884,12 +16884,12 @@
     }
     return ChangeSet.of(changes, oldOffset);
   }
-  function diffSemantic(src, dst) {
+  var diffSemantic = function diffSemantic2(src, dst) {
     let d = new diff_match_patch.diff_match_patch();
     let diffs = d.diff_main(src, dst);
     d.diff_cleanupSemantic(diffs);
     return diffToChangeSet(diffs.map(([type, value]) => ({value, added: type === 1, removed: type === -1})));
-  }
+  };
   var diffDefault = diffSemantic;
   var ChangeSetField = class {
     constructor(getDefault) {
