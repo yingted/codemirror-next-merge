@@ -84,20 +84,20 @@ export function applyChunkGutter(changeSetField, applyChunkMarker) {
           });
         });
 
-        gutters.forEach(({from, changeSpec}) => {
+        for (let {from, changeSpec} of gutters) {
+          let changeSet = ChangeSet.of(changeSpec, doc.length);
           ranges.push({
             from,
             to: from,
             value: applyChunkMarker(
-              view,
+              lastView,
               changeSet,
               function acceptChunk() {
                 if (lastView === null) return;
-                let changeSet = ChangeSet.of(changeSpec, doc.length);
                 lastView.dispatch({changes: changeSet});
               }),
           });
-        });
+        }
 
         return RangeSet.of(ranges, /*sort=*/false);
       },

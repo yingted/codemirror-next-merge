@@ -71,7 +71,7 @@ export function diffSemantic(src, dst) {
       ({value, added: type === 1, removed: type === -1})));
 }
 /** @type {DiffFunction} */
-export var diffDefault = ChangeSetField.diffSemantic;
+export var diffDefault = diffSemantic;
 
 /**
  * A hidden changeset, diffbase, or remote to diff against.

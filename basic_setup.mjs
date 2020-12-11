@@ -1,8 +1,8 @@
 import {foldAll} from '@codemirror/next/fold';
 import {acceptMarker, revertMarker, applyChunkGutter} from './apply_chunk.mjs';
-export {ChangeSetField} from './changeset_field.mjs';
-export {ChangeSetDecorations} from './decorations.mjs';
-export {foldGaps} from './fold_gaps.mjs';
+import {ChangeSetField} from './changeset_field.mjs';
+import {ChangeSetDecorations} from './decorations.mjs';
+import {foldGaps} from './fold_gaps.mjs';
 
 /**
  * Render a diff of srcView to dstView, to dstView.
