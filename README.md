@@ -1,4 +1,6 @@
 # codemirror-next-merge
+Unified diff view for CodeMirror 6.
+
 Demo:
 [live](https://yingted.github.io/codemirror-next-merge/demo.html)
 [local](/demo.html)
@@ -11,6 +13,8 @@ npm install --save yingted/codemirror-next-merge
 ```js
 import {EditorView, EditorState, basicSetup} from '@codemirror/next/basic-setup';
 import {acceptString} from 'codemirror-next-merge';
+import {foldAll} from '@codemirror/next/fold';  // optional
+
 let view = new EditorView({
   state: EditorState.create({
     doc: 'old doc',
@@ -21,7 +25,15 @@ let view = new EditorView({
   }),
   parent: document.querySelector('#editor'),
 });
+foldAll(view);  // optional
 ```
+
+### Advanced
+Copy the code of `acceptString` into your project to customize:
+
+- decorations and gutter buttons
+- shortcut to accept all changes
+- diff algorithm
 
 ## Build
 ```
