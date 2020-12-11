@@ -51,19 +51,19 @@ export function diffToChangeSet(diff) {
  * @returns {ChangeSet}
  */
 /** @type {DiffFunction} */
-export function diffChars(src, dst) {
+export let diffChars = function diffChars(src, dst) {
   return diffToChangeSet(diff.diffChars(src, dst));
 }
 /** @type {DiffFunction} */
-export function diffWords(src, dst) {
+export let diffWords = function diffWords(src, dst) {
   return diffToChangeSet(diff.diffWords(src, dst));
 }
 /** @type {DiffFunction} */
-export function diffLines(src, dst) {
+export let diffLines = function diffLines(src, dst) {
   return diffToChangeSet(diff.diffLines(src, dst));
 }
 /** @type {DiffFunction} */
-export function diffSemantic(src, dst) {
+export let diffSemantic = function diffSemantic(src, dst) {
   let d = new diff_match_patch();
   let diffs = d.diff_main(src, dst);
   d.diff_cleanupSemantic(diffs);
