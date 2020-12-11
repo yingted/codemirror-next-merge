@@ -62,7 +62,10 @@ let live = makeEditors(/*live=*/true);
 let static_ = makeEditors(/*live=*/false);
 render(html`
   <style>
-    #container > div > .cm-wrap {
+    .container {
+      display: flex;
+    }
+    .container > div > .cm-wrap {
       height: 100%;
     }
     .side {
@@ -75,13 +78,13 @@ render(html`
     }
   </style>
   Live source:
-  <div id="container" style="display: flex;">
+  <div class="container">
     <div class="side">${live.left.dom}</div>
     <div class="side">${live.center.dom}</div>
     <div class="side">${live.right.dom}</div>
   </div>
   Static source:
-  <div id="container" style="display: flex;">
+  <div class="container">
     <div class="side">${static_.left.dom}</div>
     <div class="side">${static_.center.dom}</div>
     <div class="side">${static_.right.dom}</div>
