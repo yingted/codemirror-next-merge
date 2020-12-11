@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build-demo": "esbuild demo.mjs --bundle --outfile=demo.js",
-    "build-docs": "jsdoc -c jsdoc.json README.md && npm run build-demo && cp demo.* docs/",
+    "build-docs": "jsdoc -c jsdoc.json README.md && npm run build-demo && cp demo* docs/",
     "serve-demo": "http-server",
     "serve-docs": "http-server docs"
   },

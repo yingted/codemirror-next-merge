@@ -4,7 +4,9 @@ Unified diff view for CodeMirror 6.
 [docs](https://yingted.github.io/codemirror-next-merge)
 [demo](https://yingted.github.io/codemirror-next-merge/demo.html)
 
-Features:
+![demo screenshot](demo_screenshot.png)
+
+## Features
 
 - unified diff view
 - diff against a string or another editor
