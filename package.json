@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "npx esbuild demo.mjs --bundle --outfile=demo.js",
+    "jsdoc": "jsdoc -c jsdoc.json",
     "serve": "http-server"
   },
   "repository": {

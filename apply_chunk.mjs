@@ -8,6 +8,9 @@ import {html, render} from 'lit-html';
  * A GutterMarker from a lit-html template.
  */
 class TemplateGutterMarker extends GutterMarker {
+  /**
+   * @param {TemplateResult} template
+   */
   constructor(template) {
     super();
     this._template = template;
@@ -25,14 +28,18 @@ class TemplateGutterMarker extends GutterMarker {
 
 /**
  * A gutter marker which applies the chunk on the current line.
- * @typedef {(view: EditorView, chunk: ChangeSet, applyChunk: () -> undefined) -> GutterMarker} ApplyChunkMarker
+ * @callback ApplyChunkMarker
+ * @param {EditorView} view
+ * @param {ChangeSet} chunk
+ * @param {function} applyChunk
+ * @returns {GutterMarker}
  */
 /** @type {ApplyChunkMarker} */
-export function acceptMarker(view, chunk, applyChunk) {
+export let acceptMarker = function acceptMarker(view, chunk, applyChunk) {
   return new TemplateGutterMarker(html`<button aria-label="accept" @click=${applyChunk}>✓</button>`);
 }
 /** @type {ApplyChunkMarker} */
-export function revertMarker(view, chunk, applyChunk) {
+export let revertMarker = function revertMarker(view, chunk, applyChunk) {
   return new TemplateGutterMarker(html`<button aria-label="revert" @click=${applyChunk}>✗</button>`);
 }
 

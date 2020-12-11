@@ -16,7 +16,7 @@ function makeExtension(changeSetField, extension, options, future) {
 
 /**
  * Show a diff reverting the changes in the view.
- * @param {pastView} the view to revert to
+ * @param {EditorView} pastView the view to revert to
  * @param {number} [options.foldMargin=3] clean lines of margin for folding
  * @returns {Extension}
  */
@@ -27,7 +27,7 @@ export function revertView(pastView, options = {}) {
 
 /**
  * Show a diff accepting the changes in the view.
- * @param {futureView} the view to accept
+ * @param {EditorView} futureView the view to accept
  * @param {number} [options.foldMargin=3] clean lines of margin for folding
  * @returns {Extension}
  */
@@ -38,7 +38,7 @@ export function acceptView(futureView, options = {}) {
 
 /**
  * Show a diff reverting the changes in the string.
- * @param {pastString} the string to revert to
+ * @param {string} pastString the string to revert to
  * @param {number} [options.foldMargin=3] clean lines of margin for folding
  * @returns {Extension}
  */
@@ -49,7 +49,7 @@ export function revertString(pastString, options = {}) {
 
 /**
  * Show a diff accepting the changes in the string.
- * @param {futureString} the string to accept
+ * @param {string} futureString the string to accept
  * @param {number} [options.foldMargin=3] clean lines of margin for folding
  * @returns {Extension}
  */

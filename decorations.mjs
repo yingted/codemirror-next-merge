@@ -19,7 +19,9 @@ class TemplateWidget extends WidgetType {
 
 /**
  * A widget to render a bit of text.
- * @typedef {string -> WidgetType|null} TextWidget
+ * @callback TextWidget
+ * @param {string} text
+ * @returns {WidgetType|null}
  */
 /**
  * @typedef {{inserted: TextWidget, deleted: TextWidget, unchanged: TextWidget}} ChangeSetWidgets

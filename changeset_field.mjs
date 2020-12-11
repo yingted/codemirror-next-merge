@@ -11,8 +11,7 @@ import {diff_match_patch} from 'diff-match-patch';
 
 /**
  * Convert a diff to a ChangeSet.
- * Usage:
- * changeSet = diffToChangeSet(Diff.diffChars('berry', 'strawberry'))
+ * @example changeSet = diffToChangeSet(diff.diffChars('berry', 'strawberry'))
  * @param {Change[]} diff
  * @returns {ChangeSet}
  */
@@ -46,7 +45,10 @@ export function diffToChangeSet(diff) {
 // Diff functions:
 /**
  * A function that diffs src and dst and returns the changes.
- * @typedef {(string, string) -> ChangeSet} DiffFunction
+ * @callback DiffFunction
+ * @param {string} src the original string
+ * @param {string} dst the string after the change is applied
+ * @returns {ChangeSet}
  */
 /** @type {DiffFunction} */
 export function diffChars(src, dst) {
@@ -74,13 +76,20 @@ export function diffSemantic(src, dst) {
 export var diffDefault = diffSemantic;
 
 /**
+ * A diff that's a function of the editor state.
+ * @callback EditorStateDiff
+ * @param {EditorState} state
+ * @returns {ChangeSet} the computed diff
+ */
+
+/**
  * A hidden changeset, diffbase, or remote to diff against.
  * To get the value:
  * changeSet = view.state.field(csf.field);
  */
 export class ChangeSetField {
   /**
-   * @param {EditorState -> Value} getDefault
+   * @param {EditorStateDiff} getDefault
    */
   constructor(getDefault) {
     /** @type {StateEffectType<ChangeSet>} */
@@ -117,16 +126,18 @@ export class ChangeSetField {
 
   // Effects:
   /**
-   * Usage: dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+   * @example dstView.dispatch({effects: csf.setChangeSetEffect(changeSet)});
+   * @param {ChangeSet} changeSet
+   * @returns {StateEffect<ChangeSet>}
    */
   setChangeSetEffect(changeSet) {
     return this.set.of(changeSet);
   }
   /**
-   * Usage: dstView.dispatch({effects: csf.setNewTextEffect(srcView.state, target)});
+   * @example dstView.dispatch({effects: csf.setNewTextEffect(srcView.state, target)});
    * @param {EditorState} state
    * @param {string} target
-   * @return {StateEffect<ChangeSet>}
+   * @returns {StateEffect<ChangeSet>}
    */
   setNewTextEffect(state, target, diff = diffDefault) {
     let changeSet = diff(target, state.doc.toString());
@@ -135,10 +146,10 @@ export class ChangeSetField {
 
   // Factories:
   /**
-   * Usage:
-   * dstView.dispatch({reconfigure: {append: ChangeSetField.syncTargetExtension(srcView)}});
+   * Create a changeset field with a target view.
+   * @example dstView.dispatch({reconfigure: {append: ChangeSetField.syncTargetExtension(srcView)}});
    * @param {EditorView} srcView the view to watch
-   * @param {(old: string, new: string) -> ChangeSet} diff
+   * @param {DiffFunction} diff
    * @returns {{extension: Extension, changeSetField: ChangeSetField}}
    */
   static syncTargetExtension(srcView, diff = diffDefault) {
@@ -183,6 +194,7 @@ export class ChangeSetField {
 
   /**
    * Create a changeset field with a target string.
+   * @example dstView.dispatch({reconfigure: {append: ChangeSetField.withString('target\ndocument')}});
    * @param {string} string
    * @returns {ChangeSetField}
    */

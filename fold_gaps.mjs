@@ -26,7 +26,7 @@ export function foldGaps(changeSetField, margin = 3) {
       }
       let gaps = gapsByDoc.get(doc);
       if (gaps === undefined) {
-        /** @type {Range<boolean>[]} */
+        /** @type {Array<Range<boolean>>} */
         let ranges = [];
         changeSet.iterGaps((posA, posB, length) => {
           // Get the first empty line:
