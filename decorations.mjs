@@ -139,6 +139,7 @@ function futureOrPastExtension(changeSetField, future) {
 
 /**
  * Extension to show proposed changes.
+ * Screenreaders show the current document, ignoring changes.
  * @param {ChangeSetField} changeSetField
  * @returns {Extension}
  */
@@ -148,6 +149,7 @@ export function futureExtension(changeSetField) {
 
 /**
  * Extension to show past changes.
+ * Screenreaders show the current document, ignoring changes.
  * @param {ChangeSetField} changeSetField
  * @returns {Extension}
  */

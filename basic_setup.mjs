@@ -1,33 +1,37 @@
-import {foldAll} from '@codemirror/next/fold';
+import {ViewPlugin} from '@codemirror/next/view';
 import {acceptMarker, revertMarker, applyChunkGutter} from './apply_chunk.mjs';
 import {ChangeSetField} from './changeset_field.mjs';
 import {futureExtension, pastExtension} from './decorations.mjs';
 import {foldGaps} from './fold_gaps.mjs';
 
-/**
- * Render a diff of srcView to dstView, to dstView.
- */
-export function watchAndDiffBackward(srcView, dstView) {
-  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(srcView);
-  dstView.dispatch({reconfigure: {append: extension}});
-  dstView.dispatch(
-    {reconfigure: {append: pastExtension(changeSetField)}},
-    {reconfigure: {append: applyChunkGutter(changeSetField, revertMarker)}},
-    {reconfigure: {append: foldGaps(changeSetField, /*margin=*/1)}},
-  );
-  foldAll(dstView);
+function makeExtension(changeSetField, extension, options) {
+  let foldMargin = options.foldMargin;
+  return [
+    extension,
+    pastExtension(changeSetField),
+    applyChunkGutter(changeSetField, revertMarker),
+    foldGaps(changeSetField, /*margin=*/foldMargin),
+  ];
 }
 
 /**
- * Render a diff of srcView to dstView, to srcView.
+ * Show a diff reverting the changes in the view.
+ * @param {pastView} the view to revert to
+ * @param {number} [options.foldMargin=3] clean lines of margin for folding
+ * @returns {Extension}
  */
-export function watchAndDiffForward(srcView, dstView) {
-  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(dstView);
-  srcView.dispatch({reconfigure: {append: extension}});
-  srcView.dispatch(
-    {reconfigure: {append: futureExtension(changeSetField)}},
-    {reconfigure: {append: applyChunkGutter(changeSetField, acceptMarker)}},
-    {reconfigure: {append: foldGaps(changeSetField, /*margin=*/1)}},
-  );
-  foldAll(srcView);
+export function revertView(pastView, options = {}) {
+  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(pastView);
+  return makeExtension(changeSetField, extension, options);
+}
+
+/**
+ * Show a diff accepting the changes in the view.
+ * @param {futureView} the view to accept
+ * @param {number} [options.foldMargin=3] clean lines of margin for folding
+ * @returns {Extension}
+ */
+export function acceptView(futureView, options = {}) {
+  let {changeSetField, extension} = ChangeSetField.syncTargetExtension(futureView);
+  return makeExtension(changeSetField, extension, options);
 }
