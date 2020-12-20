@@ -16985,6 +16985,9 @@
     static withDefault(value) {
       return new ChangeSetField((_) => value);
     }
+    static empty() {
+      return new ChangeSetField((state24) => ChangeSet.empty(state24.doc.length));
+    }
   };
 
   // decorations.mjs
