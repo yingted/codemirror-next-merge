@@ -227,4 +227,12 @@ export class ChangeSetField {
   static withDefault(value) {
     return new ChangeSetField(_ => value);
   }
+
+  /**
+   * Create an empty changeset field.
+   * @returns {ChangeSetField}
+   */
+  static empty() {
+    return new ChangeSetField(state => ChangeSet.empty(state.doc.length));
+  }
 }
